@@ -6,7 +6,6 @@ authors = ["Golovin Pavel <gopavel0@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.7"
-sortedcontainers = "^2.1.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.4.1"
