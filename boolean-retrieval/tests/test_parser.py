@@ -1,7 +1,7 @@
 import pytest
 
 from hw2_boolean_search import or_query, QueryOr, QueryAnd, QueryWord
-from util.parser import *
+from parser import *
 
 
 class TestParser:

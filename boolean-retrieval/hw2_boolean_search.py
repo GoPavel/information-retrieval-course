@@ -2,130 +2,54 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-import bisect
 import codecs
-import sys
+from binascii import crc32
 from dataclasses import dataclass
-from typing import Dict, List, Set, Optional, Tuple, Callable, TypeVar, Union
-from collections import defaultdict, namedtuple
+from typing import List, Set, Any
 
-from sortedcontainers import SortedDict
-
-from util.parser import someOp, satisfy, brackets, or_op_parser, and_op_parser, alter, ParserType, parser_fmap
+from src.parser import someOp, satisfy, brackets, or_op_parser, and_op_parser, alter, ParserType, parser_fmap
+from word_multi_map.model import WordMultiMap
 
 
-class Bor:
-    def __init__(self):
-        self.root = {'#': []}
-        self._size = 0
+class WeakHashTable(WordMultiMap):
+    def __init__(self, size: int = 10000):
+        self._data = [bytearray() for i in range(size)]
+        self._size = size
 
-    def insert(self, s: str, value):
-        cur = self.root
-        i = 0
-        while True:
-            if i == len(s):
-                cur['#'].append(value)
-                break
-            if s[i] in cur:
-                j = 0
-                path, nxt = cur[s[i]]
-                while j < len(path) and (i + j) < len(s) \
-                        and s[i + j] == path[j]:
-                    j += 1
-                if j == len(path):
-                    i += j
-                    cur = nxt
-                    continue
-                elif (i + j) == len(s):
-                    new_d = {}
-                    cur[s[i]] = path[:j], new_d
-                    new_d[path[j]] = path[j:], nxt
-                    new_d['#'] = [value]
-                    self._size += 1
-                    break
-                elif s[i + j] != path[j]:
-                    new_d = {}
-                    cur[s[i]] = path[:j], new_d
-                    new_d[s[i+j]] = path[j:], nxt
-                    new_d['#'] = []
-                    new_d2 = {}
-                    new_d[s[i + j]] = s[i + j:], new_d2
-                    new_d2['#'] = [value]
-                    self._size += 2
-                    break
-            if s[i] not in cur:
-                new_d = {}
-                cur[s[i]] = s[i:], new_d
-                new_d['#'] = [value]
-                self._size += 1
-                break
+    def insert(self, key: str, value: bytes):
+        i = crc32(bytes(key, 'utf-8')) % self._size
+        self._data[i].append(value[0])
+        self._data[i].append(value[1])
 
-        # for ch in s:
-        #     if ch not in cur:
-        #         cur[ch] = {'#': []}
-        #         self._size += 1
-        #     cur = cur[ch]
-        # cur['#'].append(value)
-
-    def get(self, s: str) -> list:
-        cur = self.root
-        for ch in s:
-            if ch not in cur:
-                return []
-            cur = cur[ch]
-        return cur['#']
-
-    def __len__(self):
-        return self._size
+    def get(self, key: str) -> List[Any]:
+        i = crc32(bytes(key, 'utf-8')) % self._size
+        res = []
+        for j in range(len(self._data[i]) // 2):
+            res.append(int.from_bytes(self._data[i][2*j:2*j + 2], byteorder='big'))
+        return res
 
 
 class Index:
     def __init__(self, docs_path: str):
-        self._term_to_doc = list()
+        self._term_to_doc: WordMultiMap = WeakHashTable(size=100057)
         self._create_index(docs_path)
-
-    def normalize(self):
-        # print(f"Start: {len(self._term_to_doc)}")
-        self._term_to_doc.sort(key=lambda t: t[0])
-        t = []
-        cur_term = self._term_to_doc[0][0]
-        cur_list = []
-        for term, doc_id in self._term_to_doc:
-            if cur_term == term:
-                if isinstance(doc_id, int):
-                    cur_list.append(doc_id)
-                else:
-                    cur_list = list(set(cur_list) | set(doc_id))
-            else:
-                t.append((cur_term, cur_list))
-                cur_list = [doc_id]
-                cur_term = term
-        t.append((cur_term, cur_list))
-        self._term_to_doc = t
-        # print(f"End: {len(self._term_to_doc)}")
 
     def _create_index(self, docs_path: str):
         with codecs.open(docs_path) as file:
             for line in file:
                 words = line.split()
-                doc_id = int(words[0])
+                doc_id = int(words[0]).to_bytes(2, byteorder='big')
                 for w in set(words[1:]):
-                    i = bisect.bisect_left(self._term_to_doc, w)
-                    if i == len(self._term_to_doc) or self._term_to_doc[i] != w:
-                        bisect.insort(self._term_to_doc, w)
-                    # self._term_to_doc.insert(w, doc_id)
-                    # self._term_to_doc.append((w, doc_id))
-            print(len(self._term_to_doc))
-            # print(list((k, v[0] if v else []) for k, v in self._term_to_doc.root.items()))
-            # self.normalize()
-        # print(len(self._term_to_doc))  # 244863
-        # print(sum(len(v) for v in self._term_to_doc.values()))  # 2563602
-        # print(sum(sum(4 for s in v) for v in self._term_to_doc.values()))  # 10254408
-        # print(sum(len(k) for k in self._term_to_doc.keys()))  # 1965197
-        # print(sum(len(v) * len(k) for k, v in self._term_to_doc.items()))  # 19271201
+                    self._term_to_doc.insert(w, doc_id)
+
+        # Количество уникальных термов 244863
+        # Суммарное количество doc_id по всем уникальным термам  # 2563602
+        # Суммарный размер doc_id по всем уникальным термам, если считать, что каждый 4 байта  # 10254408
+        # Суммарная длина слов по всем уникальным термам  # 1965197
+        # Суммарная длина документов, если унифицировать слова в документах  # 19271201
 
     def __getitem__(self, term: str) -> Set[int]:
-        return set()
+        return set(self._term_to_doc.get(term))
 
 
 @dataclass
@@ -145,6 +69,9 @@ class QueryAnd(QueryTreeBase):
         r = self.right.search(index)
         return l & r
 
+    def __repr__(self):
+        return f'({repr(self.left)}&&{repr(self.right)})'
+
 
 @dataclass
 class QueryOr(QueryTreeBase):
@@ -156,6 +83,9 @@ class QueryOr(QueryTreeBase):
         r = self.right.search(index)
         return l | r
 
+    def __repr__(self):
+        return f'({repr(self.left)}||{repr(self.right)})'
+
 
 @dataclass
 class QueryWord(QueryTreeBase):
@@ -164,12 +94,15 @@ class QueryWord(QueryTreeBase):
     def search(self, index: Index):
         return index[self.word]
 
+    def __repr__(self):
+        return f'{self.word}'
+
 
 """
 S -> T ('|' T)
 T -> E (' ' E)
 E -> (S)
-E -> W 
+E -> W
 """
 
 word: ParserType = satisfy(lambda s: s.isalpha() or s.isnumeric())
@@ -182,6 +115,7 @@ class Query:
     def __init__(self, qid: int, query: str):
         self.qid = qid
         t = or_query(query)
+        assert t is not None
         self.query_tree: QueryTreeBase = t[0]
         assert not t[1]
 
@@ -196,8 +130,7 @@ class SearchResults:
     def add(self, found):
         qid, docs = found
         for d in docs:
-            pass
-            # self.data.add((qid, d))
+            self.data.add((qid, d))
 
     def print_submission(self, objects_file_path, submission_file_path):
         with codecs.open(objects_file_path, mode='r', encoding='utf-8') as file:
