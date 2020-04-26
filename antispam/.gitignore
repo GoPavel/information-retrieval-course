@@ -5,4 +5,4 @@ data/
 __pycache__/
 submission.txt
 submission1.txt
-*.cvs
+*.csv
