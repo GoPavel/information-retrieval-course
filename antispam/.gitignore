@@ -1,0 +1,8 @@
+data/
+*.zip
+*.ipynb
+*.lock
+__pycache__/
+submission.txt
+submission1.txt
+*.cvs
