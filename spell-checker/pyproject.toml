@@ -8,6 +8,7 @@ authors = ["Golovin Pavel <gopavel0@gmail.com>"]
 python = "^3.7"
 attrs = "^19.3.0"
 tqdm = "^4.45.0"
+numpy = "^1.18.3"
 
 [tool.poetry.dev-dependencies]
 

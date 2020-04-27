@@ -1,16 +1,18 @@
+from tqdm import tqdm
+
 from error_model import ErrorModel
 from load_data import load_data, WordItem, MistakeItem
 from trie import Trie
 
 
 def main():
-    em = ErrorModel((0, 0.5, 0.5))
-    em.fit(load_data('data/train.csv', factory=MistakeItem))
+    em = ErrorModel((1, 0, 1))
+    em.fit(tqdm(load_data('data/train.csv', factory=MistakeItem), total=362257))
 
     t = Trie(em)
     t.fit(load_data('data/words.csv', factory=WordItem))
 
-    words = [ # 'ЛEСБІЯНКИ',
+    words = [ 'ЛEСБІЯНКИ',
              'ОЧЮЖДЕНИЯ',
              'ХӘНИЯ',
              'MÖWENPICK',
