@@ -1,0 +1,6 @@
+data/
+idea/
+*.zip/
+__pycache__/
+*.lock
+*.zip
